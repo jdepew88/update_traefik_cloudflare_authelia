@@ -115,3 +115,38 @@ print(f"Updated config file saved as {config_file}")
 
 # Add the CNAME record to Cloudflare, pointing to the main domain
 add_cname_record_to_cloudflare(CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID, f"{service_name}.{DOMAIN_NAME}", DOMAIN_NAME)
+
+# Add a new subdomain to the Authelia configuration
+new_subdomain = f"{service_name}.{DOMAIN_NAME}"
+
+def update_authelia_config(authelia_config_path, new_subdomain):
+    # Create backups directory for Authelia if it doesn't exist
+    authelia_backup_dir = '/mnt/user/appdata/Authelia/backups'
+    os.makedirs(authelia_backup_dir, exist_ok=True)
+
+    # Create a backup of the current Authelia config file with a timestamp
+    authelia_backup_file = os.path.join(authelia_backup_dir, f"configuration_backup_{timestamp}.yml")
+    with open(authelia_config_path, 'r') as file:
+        authelia_config = yaml.safe_load(file)
+    with open(authelia_backup_file, 'w') as file:
+        yaml.dump(authelia_config, file)
+
+    print(f"Backup of the original Authelia config file saved as {authelia_backup_file}")
+
+    # Update the Authelia config
+    for rule in authelia_config['access_control']['rules']:
+        if rule['policy'] == 'one_factor':
+            rule['domain'].append(new_subdomain)
+            break
+    else:
+        authelia_config['access_control']['rules'].append({
+            'domain': [new_subdomain],
+            'policy': 'one_factor'
+        })
+    with open(authelia_config_path, 'w') as file:
+        yaml.dump(authelia_config, file)
+
+authelia_config_path = '/mnt/user/appdata/Authelia/configuration.yml'
+update_authelia_config(authelia_config_path, new_subdomain)
+
+print(f"Authelia configuration updated with new subdomain {new_subdomain}")
